@@ -23,6 +23,6 @@ export async function POST(req) {
     if (String(e.message).includes("duplicate key")) {
       return NextResponse.json({ error: "An account with that email already exists." }, { status: 409 });
     }
-    return NextResponse.json({ error: "Could not create account. Try again." }, { status: 500 });
+    return NextResponse.json({ error: "Could not create account. Try again.", debug: String(e.message), stack: String(e.stack).slice(0, 500) }, { status: 500 });
   }
 }
