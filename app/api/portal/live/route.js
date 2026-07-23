@@ -99,6 +99,7 @@ p{color:#555;font-size:14px;margin:6px 0}
   <p>Welcome to ${t.business_name || "our"} WiFi. Enjoy your browsing.</p>
   <div class="usage" id="usage">Checking your data balance...</div>
   <p class="small">Redirecting you in a moment&hellip;</p>
+  <a href="$(link-logout)" style="display:block;margin-top:10px;font-size:12px;color:#999;text-decoration:underline">Log out of this device</a>
 </div>
 <script>
 (function(){
