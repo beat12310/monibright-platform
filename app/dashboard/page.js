@@ -204,10 +204,14 @@ export default function Dashboard() {
             </div>
 
             <button className="cta" onClick={savePortal}>Save design</button>
-            <button className="cta ghost" onClick={async () => { await savePortal(); window.location.href = "/api/portal?download=1"; }}>Download login page for my router</button>
             {portalMsg && <p>{portalMsg}</p>}
             <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "10px 12px", fontSize: 13, marginTop: 8 }}>
-              <b>To put it on your router:</b> open <b>http://192.168.88.1:8080</b> &rarr; <b>Files</b> &rarr; open the <b>hotspot</b> folder &rarr; upload this <b>login.html</b> (replacing the plain one). Customers see your design immediately.
+              <b>No upload needed.</b> New routers pick up this design automatically when you run their setup script. Already set up a router? After saving, paste this one line into its terminal to refresh it instantly:
+              {data.routers.map(r => (
+                <pre key={r.id} style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6, padding: 8, fontSize: 12, marginTop: 6, overflowX: "auto" }}>
+{`/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}" dst-path=hotspot/login.html`}
+                </pre>
+              ))}
             </div>
           </>
         )}
