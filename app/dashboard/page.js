@@ -209,7 +209,8 @@ export default function Dashboard() {
               <b>No upload needed.</b> New routers pick up this design automatically when you run their setup script. Already set up a router? After saving, paste this one line into its terminal to refresh it instantly:
               {data.routers.map(r => (
                 <pre key={r.id} style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6, padding: 8, fontSize: 12, marginTop: 6, overflowX: "auto" }}>
-{`/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}" dst-path=hotspot/login.html`}
+{`/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}" dst-path=hotspot/login.html
+/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}&page=status" dst-path=hotspot/status.html`}
                 </pre>
               ))}
             </div>
