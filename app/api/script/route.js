@@ -20,6 +20,7 @@ export async function GET(req) {
 
   const RADIUS_IP = process.env.RADIUS_SERVER_IP || "35.94.30.151";
   const RADIUS_SECRET = process.env.RADIUS_SHARED_SECRET || "MonibrightTestSecret2026";
+  const origin = new URL(req.url).origin;
 
   const script = `# ============================================
 # Monibright setup for "${businessName}"
@@ -44,10 +45,15 @@ export async function GET(req) {
 # 5. Owner protection: your own devices can always reach this router's pages
 /ip hotspot walled-garden ip add action=accept dst-address=192.168.88.1 comment="Always allow router pages"
 
+# 6. Download your branded WiFi login page automatically (no manual upload needed).
+#    Whenever you change the design on your dashboard, just run this ONE line again:
+/tool fetch url="${origin}/api/portal/live?key=${router_key}" dst-path=hotspot/login.html
+
 :put "=============================================="
 :put "SETUP COMPLETE for ${businessName}"
 :put "WiFi name: ${ssid}"
 :put "Your admin page moved to: http://192.168.88.1:8080"
+:put "Your branded login page is installed automatically."
 :put "Customers: connect to the WiFi and enter a voucher code."
 :put "=============================================="
 `;
