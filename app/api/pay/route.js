@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/db";
+import { getBillingStatus } from "../../../lib/billing";
 
 export async function POST(req) {
   try {
@@ -8,6 +9,8 @@ export async function POST(req) {
     if (tenantRes.rows.length === 0) return NextResponse.json({ error: "Unknown business." }, { status: 404 });
     const { paystack_secret_key, business_name } = tenantRes.rows[0];
     if (!paystack_secret_key) return NextResponse.json({ error: "This business hasn't connected Paystack yet." }, { status: 400 });
+    const billing = await getBillingStatus(tenantId);
+    if (!billing?.active) return NextResponse.json({ error: "This business is temporarily unavailable." }, { status: 403 });
 
     const pkgRes = await pool.query(`SELECT price_ghs FROM tenant_packages WHERE tenant_id=$1 AND gb=$2`, [tenantId, gb]);
     if (pkgRes.rows.length === 0) return NextResponse.json({ error: "Package not found." }, { status: 404 });

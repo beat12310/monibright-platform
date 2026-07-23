@@ -7,7 +7,7 @@ export async function GET(req) {
   if (!tenantId) return NextResponse.json({ error: "Not logged in." }, { status: 401 });
 
   const tenant = await pool.query(
-    `SELECT business_name, email, brand_color, plan, subscription_active, paystack_secret_key IS NOT NULL AS has_paystack FROM tenants WHERE id=$1`,
+    `SELECT id, business_name, email, brand_color, plan, subscription_active, paystack_secret_key IS NOT NULL AS has_paystack FROM tenants WHERE id=$1`,
     [tenantId]
   );
   const routers = await pool.query(

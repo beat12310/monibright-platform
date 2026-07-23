@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { pool } from "../../../lib/db";
 import { getTenantIdFromRequest } from "../../../lib/auth";
+import { getBillingStatus } from "../../../lib/billing";
 
 export async function POST(req) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return NextResponse.json({ error: "Not logged in." }, { status: 401 });
+
+  const billing = await getBillingStatus(tenantId);
+  if (!billing?.active) return NextResponse.json({ error: "Your subscription has expired. Renew on the Billing card to keep selling." }, { status: 402 });
 
   const { routerId, gb, count } = await req.json();
   const n = Math.max(1, Math.min(200, Number(count) || 1));
