@@ -211,7 +211,7 @@ export default function Dashboard() {
                 <pre key={r.id} style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6, padding: 8, fontSize: 12, marginTop: 6, overflowX: "auto" }}>
 {`/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}" dst-path=hotspot/login.html
 /tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}&page=status" dst-path=hotspot/status.html
-/interface wifi set [find] configuration.ssid="${(data.tenant.business_name + " WiFi").replace(/[^A-Za-z0-9 _-]/g, "").slice(0, 30)}"`}
+/interface wifi set [find] configuration.ssid="${(data.tenant.business_name + " WiFi").replace(/[^A-Za-z0-9 _-]/g, "").slice(0, 30)}" security.authentication-types=""`}
                 </pre>
               ))}
             </div>
