@@ -60,6 +60,7 @@ button{width:100%;margin-top:12px;padding:13px;border:0;border-radius:10px;backg
   <h1>${welcome}</h1>
   <p>Enter your voucher code to get online</p>
   <form name="login" action="$(link-login-only)" method="post">
+    <input type="hidden" name="dst" value="$(link-status)">
     <input name="username" placeholder="Voucher code" autocomplete="off" oninput="document.login.password.value=this.value">
     <input type="hidden" name="password">
     <button type="submit">Connect</button>
