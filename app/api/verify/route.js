@@ -9,7 +9,7 @@ export async function GET(req) {
   if (!reference || !tenantId) return NextResponse.json({ error: "Missing details." }, { status: 400 });
 
   const dupCheck = await pool.query(
-    `SELECT code, gb, ghs FROM tenant_sales WHERE tenant_id=$1 AND source=$2`,
+    `SELECT code, gb, days, ghs FROM tenant_sales WHERE tenant_id=$1 AND source=$2`,
     [tenantId, `momo-ref-${reference}`]
   );
   if (dupCheck.rows.length > 0) {
@@ -28,24 +28,33 @@ export async function GET(req) {
     return NextResponse.json({ error: "Payment not confirmed yet. Refresh in a moment." }, { status: 402 });
   }
 
-  const gb = Number(d.data.metadata?.gb);
+  const packageId = d.data.metadata?.packageId;
   const paidGhs = d.data.amount / 100;
+
+  const pkgRes = await pool.query(`SELECT type, gb, days FROM tenant_packages WHERE id=$1 AND tenant_id=$2`, [packageId, tenantId]);
+  if (pkgRes.rows.length === 0) return NextResponse.json({ error: "Package no longer exists - contact support." }, { status: 500 });
+  const pkg = pkgRes.rows[0];
 
   const routerRes = await pool.query(`SELECT router_key FROM tenant_routers WHERE tenant_id=$1 ORDER BY created_at ASC LIMIT 1`, [tenantId]);
   const routerKey = routerRes.rows[0]?.router_key || "MB00";
 
   const suffix = crypto.randomBytes(4).toString("hex").toUpperCase();
   const code = `${routerKey.slice(0, 4)}-${suffix}`;
-  const bytes = gb * 1073741824;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     await client.query(`INSERT INTO radcheck (username, attribute, op, value) VALUES ($1,'Auth-Type',':=','Accept')`, [code]);
-    await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Mikrotik-Total-Limit',':=',$2)`, [code, String(bytes)]);
+    if (pkg.type === "time") {
+      const seconds = pkg.days * 86400;
+      await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Session-Timeout',':=',$2)`, [code, String(seconds)]);
+    } else {
+      const bytes = pkg.gb * 1073741824;
+      await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Mikrotik-Total-Limit',':=',$2)`, [code, String(bytes)]);
+    }
     await client.query(
-      `INSERT INTO tenant_sales (tenant_id, code, gb, ghs, source) VALUES ($1,$2,$3,$4,$5)`,
-      [tenantId, code, gb, paidGhs, `momo-ref-${reference}`]
+      `INSERT INTO tenant_sales (tenant_id, code, gb, days, ghs, source) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [tenantId, code, pkg.gb, pkg.days, paidGhs, `momo-ref-${reference}`]
     );
     await client.query("COMMIT");
   } catch (e) {
@@ -55,5 +64,5 @@ export async function GET(req) {
     client.release();
   }
 
-  return NextResponse.json({ code, gb, ghs: paidGhs });
+  return NextResponse.json({ code, gb: pkg.gb, days: pkg.days, ghs: paidGhs });
 }

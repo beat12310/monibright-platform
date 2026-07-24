@@ -6,10 +6,12 @@ export default function Dashboard() {
   const [billing, setBilling] = useState(null);
   const [portal, setPortal] = useState(null);
   const [routerName, setRouterName] = useState("");
+  const [pkgType, setPkgType] = useState("data");
   const [pkgGb, setPkgGb] = useState("");
+  const [pkgDays, setPkgDays] = useState("");
   const [pkgPrice, setPkgPrice] = useState("");
   const [genRouter, setGenRouter] = useState("");
-  const [genGb, setGenGb] = useState("");
+  const [genPackage, setGenPackage] = useState("");
   const [genCount, setGenCount] = useState(5);
   const [genResult, setGenResult] = useState(null);
   const [paystackKey, setPaystackKey] = useState("");
@@ -46,8 +48,13 @@ export default function Dashboard() {
   }
 
   async function addRouter() { if (await post("/api/routers", { routerName })) { setRouterName(""); load(); } }
-  async function addPackage() { if (await post("/api/packages", { gb: Number(pkgGb), priceGhs: Number(pkgPrice) })) { setPkgGb(""); setPkgPrice(""); load(); } }
-  async function generate() { const d = await post("/api/vouchers", { routerId: genRouter, gb: Number(genGb), count: Number(genCount) }); if (d) setGenResult(d); }
+  async function addPackage() {
+    const body = pkgType === "time"
+      ? { type: "time", days: Number(pkgDays), priceGhs: Number(pkgPrice) }
+      : { type: "data", gb: Number(pkgGb), priceGhs: Number(pkgPrice) };
+    if (await post("/api/packages", body)) { setPkgGb(""); setPkgDays(""); setPkgPrice(""); load(); }
+  }
+  async function generate() { const d = await post("/api/vouchers", { routerId: genRouter, packageId: genPackage, count: Number(genCount) }); if (d) setGenResult(d); }
   async function saveSettings() {
     setSettingsMsg("Checking key with Paystack...");
     const d = await post("/api/settings", { paystackSecretKey: paystackKey });
@@ -144,10 +151,27 @@ export default function Dashboard() {
       <main className="card">
         <h2>Your packages</h2>
         {data.packages.map(p => (
-          <div className="row" key={p.gb}><span>{p.gb}GB</span><span>GHS {Number(p.price_ghs).toFixed(2)}</span></div>
+          <div className="row" key={p.id}>
+            <span>{p.type === "time" ? `${p.days} day${p.days === 1 ? "" : "s"} - unlimited data` : `${p.gb}GB`}</span>
+            <span>GHS {Number(p.price_ghs).toFixed(2)}</span>
+          </div>
         ))}
-        <label>GB</label>
-        <input value={pkgGb} onChange={e => setPkgGb(e.target.value)} type="number" />
+        <label>Package type</label>
+        <select value={pkgType} onChange={e => setPkgType(e.target.value)}>
+          <option value="data">Data amount (e.g. 1GB)</option>
+          <option value="time">Time pass - unlimited data (e.g. 1 day)</option>
+        </select>
+        {pkgType === "time" ? (
+          <>
+            <label>Days</label>
+            <input value={pkgDays} onChange={e => setPkgDays(e.target.value)} type="number" placeholder="e.g. 1" />
+          </>
+        ) : (
+          <>
+            <label>GB</label>
+            <input value={pkgGb} onChange={e => setPkgGb(e.target.value)} type="number" placeholder="e.g. 1" />
+          </>
+        )}
         <label>Price (GHS)</label>
         <input value={pkgPrice} onChange={e => setPkgPrice(e.target.value)} type="number" />
         <button className="cta" onClick={addPackage}>Add package</button>
@@ -160,17 +184,21 @@ export default function Dashboard() {
           <option value="">Choose router</option>
           {data.routers.map(r => <option key={r.id} value={r.id}>{r.router_name}</option>)}
         </select>
-        <label>Package (GB)</label>
-        <select value={genGb} onChange={e => setGenGb(e.target.value)}>
+        <label>Package</label>
+        <select value={genPackage} onChange={e => setGenPackage(e.target.value)}>
           <option value="">Choose package</option>
-          {data.packages.map(p => <option key={p.gb} value={p.gb}>{p.gb}GB - GHS {Number(p.price_ghs).toFixed(2)}</option>)}
+          {data.packages.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.type === "time" ? `${p.days} day${p.days === 1 ? "" : "s"} - unlimited` : `${p.gb}GB`} - GHS {Number(p.price_ghs).toFixed(2)}
+            </option>
+          ))}
         </select>
         <label>How many codes</label>
         <input value={genCount} onChange={e => setGenCount(e.target.value)} type="number" />
         <button className="cta" onClick={generate}>Generate</button>
         {genResult?.codes && (
           <div style={{ marginTop: 10 }}>
-            <p><b>{genResult.codes.length} codes</b> ({genResult.gb}GB @ GHS {genResult.price} each). Customer enters the code as both username and password:</p>
+            <p><b>{genResult.codes.length} codes</b> ({genResult.type === "time" ? `${genResult.days} day${genResult.days === 1 ? "" : "s"} unlimited` : `${genResult.gb}GB`} @ GHS {genResult.price} each). Customer enters the code as both username and password:</p>
             <pre style={{ background: "#f5f5f5", padding: 10, borderRadius: 8, fontSize: 14 }}>{genResult.codes.join("\n")}</pre>
           </div>
         )}
@@ -240,7 +268,7 @@ export default function Dashboard() {
       <main className="card">
         <h2>Recent sales</h2>
         {data.sales.length === 0 ? <p>No sales yet.</p> : data.sales.map((s, i) => (
-          <div className="row" key={i}><span>{s.gb}GB - {s.code}</span><span>GHS {Number(s.amount_ghs).toFixed(2)}</span></div>
+          <div className="row" key={i}><span>{s.days ? `${s.days}d unlimited` : `${s.gb}GB`} - {s.code}</span><span>GHS {Number(s.amount_ghs ?? s.ghs).toFixed(2)}</span></div>
         ))}
       </main>
     </>

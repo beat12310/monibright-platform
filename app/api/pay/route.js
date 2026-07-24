@@ -4,7 +4,7 @@ import { getBillingStatus } from "../../../lib/billing";
 
 export async function POST(req) {
   try {
-    const { tenantId, gb } = await req.json();
+    const { tenantId, packageId } = await req.json();
     const tenantRes = await pool.query(`SELECT paystack_secret_key, business_name FROM tenants WHERE id=$1`, [tenantId]);
     if (tenantRes.rows.length === 0) return NextResponse.json({ error: "Unknown business." }, { status: 404 });
     const { paystack_secret_key, business_name } = tenantRes.rows[0];
@@ -12,7 +12,7 @@ export async function POST(req) {
     const billing = await getBillingStatus(tenantId);
     if (!billing?.active) return NextResponse.json({ error: "This business is temporarily unavailable." }, { status: 403 });
 
-    const pkgRes = await pool.query(`SELECT price_ghs FROM tenant_packages WHERE tenant_id=$1 AND gb=$2`, [tenantId, gb]);
+    const pkgRes = await pool.query(`SELECT price_ghs FROM tenant_packages WHERE id=$1 AND tenant_id=$2`, [packageId, tenantId]);
     if (pkgRes.rows.length === 0) return NextResponse.json({ error: "Package not found." }, { status: 404 });
     const price = pkgRes.rows[0].price_ghs;
 
@@ -25,7 +25,7 @@ export async function POST(req) {
         amount: Math.round(price * 100),
         currency: "GHS",
         channels: ["mobile_money", "card"],
-        metadata: { tenantId, gb },
+        metadata: { tenantId, packageId },
         callback_url: `${base}/collect?tenantId=${tenantId}`
       })
     });

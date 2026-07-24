@@ -11,7 +11,7 @@ export async function POST(req) {
   const billing = await getBillingStatus(tenantId);
   if (!billing?.active) return NextResponse.json({ error: "Your subscription has expired. Renew on the Billing card to keep selling." }, { status: 402 });
 
-  const { routerId, gb, count } = await req.json();
+  const { routerId, packageId, count } = await req.json();
   const n = Math.max(1, Math.min(200, Number(count) || 1));
 
   const routerRes = await pool.query(
@@ -22,11 +22,12 @@ export async function POST(req) {
   const routerKey = routerRes.rows[0].router_key;
 
   const pkgRes = await pool.query(
-    `SELECT price_ghs FROM tenant_packages WHERE tenant_id=$1 AND gb=$2`,
-    [tenantId, gb]
+    `SELECT type, gb, days, price_ghs FROM tenant_packages WHERE id=$1 AND tenant_id=$2`,
+    [packageId, tenantId]
   );
-  if (pkgRes.rows.length === 0) return NextResponse.json({ error: "That package size doesn't exist yet - add it first." }, { status: 400 });
-  const price = pkgRes.rows[0].price_ghs;
+  if (pkgRes.rows.length === 0) return NextResponse.json({ error: "That package doesn't exist - add it first." }, { status: 400 });
+  const pkg = pkgRes.rows[0];
+  const price = pkg.price_ghs;
 
   const codes = [];
   const client = await pool.connect();
@@ -35,9 +36,14 @@ export async function POST(req) {
     for (let i = 0; i < n; i++) {
       const suffix = crypto.randomBytes(4).toString("hex").toUpperCase();
       const code = `${routerKey.slice(0, 4)}-${suffix}`;
-      const bytes = gb * 1073741824;
       await client.query(`INSERT INTO radcheck (username, attribute, op, value) VALUES ($1,'Auth-Type',':=','Accept')`, [code]);
-      await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Mikrotik-Total-Limit',':=',$2)`, [code, String(bytes)]);
+      if (pkg.type === "time") {
+        const seconds = pkg.days * 86400;
+        await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Session-Timeout',':=',$2)`, [code, String(seconds)]);
+      } else {
+        const bytes = pkg.gb * 1073741824;
+        await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Mikrotik-Total-Limit',':=',$2)`, [code, String(bytes)]);
+      }
       codes.push(code);
     }
     await client.query("COMMIT");
@@ -48,5 +54,5 @@ export async function POST(req) {
     client.release();
   }
 
-  return NextResponse.json({ codes, gb, price });
+  return NextResponse.json({ codes, type: pkg.type, gb: pkg.gb, days: pkg.days, price });
 }

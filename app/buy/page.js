@@ -4,9 +4,9 @@ import { useSearchParams } from "next/navigation";
 
 function Buy() {
   const params = useSearchParams();
-  const tenantId = params.get("t");
+  const tenantId = params.get("t") || params.get("tenantId");
   const [packages, setPackages] = useState([]);
-  const [gb, setGb] = useState(null);
+  const [packageId, setPackageId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -17,7 +17,7 @@ function Buy() {
 
   async function pay() {
     setBusy(true); setErr("");
-    const r = await fetch("/api/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, gb }) });
+    const r = await fetch("/api/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, packageId }) });
     const d = await r.json();
     if (d.url) window.location.href = d.url;
     else { setErr(d.error || "Could not start payment."); setBusy(false); }
@@ -27,16 +27,16 @@ function Buy() {
 
   return (
     <main className="card">
-      <h2>Buy data with Mobile Money</h2>
+      <h2>Buy WiFi access with Mobile Money</h2>
       <div className="stat-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
         {packages.map((p) => (
-          <div key={p.id} className="stat" style={{ cursor: "pointer", border: gb === p.gb ? "2px solid #f5a623" : "2px solid transparent" }} onClick={() => setGb(p.gb)}>
-            <div className="v">{p.gb}GB</div>
+          <div key={p.id} className="stat" style={{ cursor: "pointer", border: packageId === p.id ? "2px solid #f5a623" : "2px solid transparent" }} onClick={() => setPackageId(p.id)}>
+            <div className="v">{p.type === "time" ? `${p.days} day${p.days === 1 ? "" : "s"}` : `${p.gb}GB`}</div>
             <div className="l">GHS {p.price_ghs}</div>
           </div>
         ))}
       </div>
-      <button className="cta" onClick={pay} disabled={!gb || busy}>{busy ? "Opening payment..." : "Pay with MoMo"}</button>
+      <button className="cta" onClick={pay} disabled={!packageId || busy}>{busy ? "Opening payment..." : "Pay with MoMo"}</button>
       {err ? <div className="err">{err}</div> : null}
     </main>
   );

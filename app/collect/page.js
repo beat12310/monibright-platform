@@ -18,9 +18,10 @@ function Collect() {
 
   if (state.loading) return <main className="card">Confirming payment...</main>;
   if (state.error) return <main className="card err">{state.error}</main>;
+  const label = state.days ? `${state.days} day${state.days === 1 ? "" : "s"}` : `${state.gb}GB`;
   return (
     <main className="card" style={{ textAlign: "center" }}>
-      <h2>Payment successful - {state.gb}GB</h2>
+      <h2>Payment successful - {label}</h2>
       <div className="stat"><div className="v"><code>{state.code}</code></div><div className="l">Your voucher code</div></div>
       <div className="note">Enter this code on the WiFi login page.</div>
     </main>

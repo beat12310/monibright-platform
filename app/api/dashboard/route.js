@@ -15,11 +15,11 @@ export async function GET(req) {
     [tenantId]
   );
   const packages = await pool.query(
-    `SELECT id, gb, price_ghs FROM tenant_packages WHERE tenant_id=$1 ORDER BY gb ASC`,
+    `SELECT id, type, gb, days, price_ghs FROM tenant_packages WHERE tenant_id=$1 ORDER BY price_ghs ASC`,
     [tenantId]
   );
   const sales = await pool.query(
-    `SELECT gb, ghs, source, created_at FROM tenant_sales WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 30`,
+    `SELECT code, gb, days, ghs, source, created_at FROM tenant_sales WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 30`,
     [tenantId]
   );
   const totals = await pool.query(
