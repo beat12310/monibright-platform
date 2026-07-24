@@ -142,6 +142,9 @@ export default function Dashboard() {
             <li>Download the setup script above - it opens like a normal text file. Copy ALL of it, paste into the terminal, press Enter.</li>
             <li>Done. Your admin page moves to <b>http://192.168.88.1:8080</b> (save that link). The WiFi opens with your business name, and customers need a voucher code to get online.</li>
           </ol>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#a15c00" }}>
+            <b>If you see "not allowed by device-mode":</b> your router is in a locked-down safety mode. Paste this one line first: <code>/system device-mode update fetch=yes</code> - it will ask you to confirm by briefly pressing the router's reset button (a quick 1-second tap, not a hold). After it reboots, paste the setup script again and it will work.
+          </p>
         </div>
         <label>New router name</label>
         <input value={routerName} onChange={e => setRouterName(e.target.value)} placeholder="e.g. Shop Branch" />
