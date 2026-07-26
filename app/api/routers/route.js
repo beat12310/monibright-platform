@@ -35,6 +35,45 @@ export async function GET(req) {
   return NextResponse.json({ routers: result.rows });
 }
 
+// --- Rename a router (this is also its WiFi name) ---
+// The router picks the new name up on its next sync, within about 2 minutes.
+export async function PATCH(req) {
+  const tenantId = getTenantIdFromRequest(req);
+  if (!tenantId) return NextResponse.json({ error: "Not logged in." }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const routerId = Number(searchParams.get("routerId"));
+  if (!routerId) return NextResponse.json({ error: "Which router do you want to rename?" }, { status: 400 });
+
+  const { routerName } = await req.json();
+  const raw = String(routerName || "").trim();
+
+  if (!raw) {
+    return NextResponse.json({ error: "Enter a WiFi name." }, { status: 400 });
+  }
+
+  // A WiFi name has to survive being written into a RouterOS command, so the
+  // same rules are applied here that the router config generator applies.
+  const clean = raw.replace(/[^A-Za-z0-9 _-]/g, "").trim().slice(0, 30);
+
+  if (!clean) {
+    return NextResponse.json(
+      { error: "Use letters, numbers, spaces, hyphens or underscores only." },
+      { status: 400 }
+    );
+  }
+
+  const result = await pool.query(
+    `UPDATE tenant_routers SET router_name=$1 WHERE id=$2 AND tenant_id=$3 RETURNING id, router_name, router_key`,
+    [clean, routerId, tenantId]
+  );
+  if (result.rows.length === 0) {
+    return NextResponse.json({ error: "Router not found." }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true, router: result.rows[0], cleaned: clean !== raw });
+}
+
 // --- Remove a router you no longer use ---
 // Scoped by tenant_id so one account can never delete another account's router.
 export async function DELETE(req) {

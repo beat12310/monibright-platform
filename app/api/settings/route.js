@@ -9,7 +9,7 @@ export async function POST(req) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return NextResponse.json({ error: "Not logged in." }, { status: 401 });
 
-  const { paystackSecretKey, brandColor, email } = await req.json();
+  const { paystackSecretKey, brandColor, email, businessName } = await req.json();
   const result = { ok: true };
 
   if (paystackSecretKey) {
@@ -33,6 +33,18 @@ export async function POST(req) {
 
   if (brandColor) {
     await pool.query(`UPDATE tenants SET brand_color=$1 WHERE id=$2`, [brandColor, tenantId]);
+  }
+
+  // --- Change the business name ---
+  // This shows on the WiFi login page, on the "you're connected" page, and in
+  // the title bar. It used to be fixed at signup with no way to correct it.
+  if (businessName !== undefined && businessName !== null) {
+    const clean = String(businessName).trim().slice(0, 60);
+    if (!clean) {
+      return NextResponse.json({ error: "Enter a business name." }, { status: 400 });
+    }
+    await pool.query(`UPDATE tenants SET business_name=$1 WHERE id=$2`, [clean, tenantId]);
+    result.businessName = clean;
   }
 
   // --- Change the account email (the address you sign in with) ---

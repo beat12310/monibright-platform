@@ -22,6 +22,9 @@ export default function Dashboard() {
   const [tenantId, setTenantId] = useState(null);
   const [accountEmail, setAccountEmail] = useState("");
   const [accountMsg, setAccountMsg] = useState("");
+  const [wifiNames, setWifiNames] = useState({});
+  const [routerMsg, setRouterMsg] = useState("");
+  const [businessName, setBusinessName] = useState("");
 
   async function load() {
     const r = await fetch("/api/dashboard");
@@ -30,6 +33,8 @@ export default function Dashboard() {
     setData(d);
     setTenantId(d?.tenant?.id ?? null);
     setAccountEmail(d?.tenant?.email ?? "");
+    setBusinessName(d?.tenant?.business_name ?? "");
+    setWifiNames(Object.fromEntries((d?.routers || []).map(x => [x.id, x.router_name || ""])));
     const b = await fetch("/api/billing").then(x => x.json()).catch(() => null);
     setBilling(b?.status || null);
     const p = await fetch("/api/portal").then(x => x.json()).catch(() => null);
@@ -50,6 +55,14 @@ export default function Dashboard() {
     return d;
   }
 
+  async function patch(url, body) {
+    setApiErr("");
+    const r = await fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { setApiErr(d.error || "Something went wrong."); return null; }
+    return d;
+  }
+
   async function del(url) {
     setApiErr("");
     const r = await fetch(url, { method: "DELETE" });
@@ -60,6 +73,20 @@ export default function Dashboard() {
 
   async function addRouter() { if (await post("/api/routers", { routerName })) { setRouterName(""); load(); } }
 
+  async function saveWifiName(r) {
+    const name = (wifiNames[r.id] || "").trim();
+    if (!name) { setRouterMsg("Enter a WiFi name first."); return; }
+    if (name === r.router_name) { setRouterMsg("That is already the WiFi name."); return; }
+    setRouterMsg("Saving...");
+    const d = await patch(`/api/routers?routerId=${r.id}`, { routerName: name });
+    if (!d) { setRouterMsg(""); return; }
+    setRouterMsg(
+      (d.cleaned ? `Saved as "${d.router.router_name}" (some characters aren't allowed in a WiFi name). ` : "Saved. ") +
+      "The router will switch to the new name within about 2 minutes. Phones already connected will need to rejoin."
+    );
+    load();
+  }
+
   async function removeRouter(r) {
     const sure = window.confirm(
       `Remove "${r.router_name}"?\n\n` +
@@ -69,6 +96,16 @@ export default function Dashboard() {
     );
     if (!sure) return;
     if (await del(`/api/routers?routerId=${r.id}`)) load();
+  }
+
+  async function saveBusinessName() {
+    const clean = businessName.trim();
+    if (!clean) { setAccountMsg("Enter a business name."); return; }
+    if (clean === (data?.tenant?.business_name || "")) { setAccountMsg("That is already your business name."); return; }
+    setAccountMsg("Saving...");
+    const d = await post("/api/settings", { businessName: clean });
+    setAccountMsg(d ? `Saved. Your WiFi pages will show "${d.businessName}" within about 2 minutes.` : "");
+    if (d) load();
   }
 
   async function saveEmail() {
@@ -103,7 +140,7 @@ export default function Dashboard() {
   async function savePortal() {
     setPortalMsg("Saving...");
     const d = await post("/api/portal", { brandColor: portal.brand_color, welcome: portal.portal_welcome, logoUrl: portal.portal_logo_url, supportPhone: portal.support_phone });
-    setPortalMsg(d ? "Saved!" : "");
+    setPortalMsg(d ? "Saved! Your routers will pick up the new design within about 2 minutes." : "");
   }
   async function payFor(plan) {
     setBillMsg("Opening secure Paystack payment...");
@@ -131,7 +168,15 @@ export default function Dashboard() {
 
       <main className="card">
         <h2>Your account</h2>
-        <p style={{ fontSize: 13, color: "#666" }}>This is the email address you sign in with.</p>
+
+        <label>Business name</label>
+        <input value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. Richie One" />
+        <button className="cta" onClick={saveBusinessName}>Save business name</button>
+        <p style={{ fontSize: 12, color: "#888" }}>
+          Shown on the WiFi login page and on the &quot;you&apos;re connected&quot; page your customers see.
+        </p>
+
+        <p style={{ fontSize: 13, color: "#666", marginTop: 18 }}>This is the email address you sign in with.</p>
         <label>Email address</label>
         <input value={accountEmail} onChange={e => setAccountEmail(e.target.value)} type="email" placeholder="you@example.com" />
         <button className="cta" onClick={saveEmail}>Save email</button>
@@ -174,37 +219,59 @@ export default function Dashboard() {
       </main>
 
       <main className="card">
-        <h2>Your routers</h2>
+        <h2>Your WiFi networks</h2>
+        <p style={{ fontSize: 13, color: "#666" }}>
+          Type a new name and save. The router changes its WiFi name by itself - you do not need to touch it.
+        </p>
         {expired && <p style={{ color: "#b00020" }}>Subscription expired - renew above to manage routers.</p>}
+
+        {data.routers.length === 0 && <p>No routers yet. Add one below.</p>}
+
         {data.routers.map(r => (
-          <div className="row" key={r.id}>
-            <span>{r.router_name} <span className="pill">{r.router_key}</span></span>
-            <span style={{ display: "flex", gap: 8 }}>
-              <button className="cta ghost" style={{ width: "auto", padding: "6px 12px", margin: 0 }}
+          <div key={r.id} style={{ borderTop: "1px solid #eee", paddingTop: 12, marginTop: 12 }}>
+            <label>WiFi name</label>
+            <input
+              value={wifiNames[r.id] ?? ""}
+              onChange={e => setWifiNames({ ...wifiNames, [r.id]: e.target.value })}
+              placeholder="e.g. Kojo Shop WiFi"
+            />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <button className="cta" style={{ width: "auto", padding: "8px 14px", margin: 0 }}
+                onClick={() => saveWifiName(r)}>
+                Save WiFi name
+              </button>
+              <button className="cta ghost" style={{ width: "auto", padding: "8px 14px", margin: 0 }}
                 onClick={() => { window.location.href = `/api/script?routerId=${r.id}`; }}>
                 Download setup script
               </button>
-              <button className="cta ghost" style={{ width: "auto", padding: "6px 12px", margin: 0, color: "#b00020", borderColor: "#b00020" }}
+              <button className="cta ghost" style={{ width: "auto", padding: "8px 14px", margin: 0, color: "#b00020", borderColor: "#b00020" }}
                 onClick={() => removeRouter(r)}>
                 Remove
               </button>
-            </span>
+            </div>
+            <p style={{ fontSize: 12, color: "#888", margin: "6px 0 0" }}>
+              Router key <span className="pill">{r.router_key}</span>
+            </p>
           </div>
         ))}
-        <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "10px 12px", fontSize: 13, margin: "10px 0" }}>
-          <b>How to set up a router (5 minutes):</b>
+
+        {routerMsg && <p style={{ marginTop: 10 }}>{routerMsg}</p>}
+
+        <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "10px 12px", fontSize: 13, margin: "14px 0" }}>
+          <b>Setting up a router for the first time (5 minutes):</b>
           <ol style={{ margin: "6px 0 0 18px", padding: 0 }}>
             <li>Plug your internet cable into port 1, your computer into port 2.</li>
             <li>Open <b>http://192.168.88.1</b>, log in, open <b>Terminal</b>.</li>
             <li>Download the setup script above - it opens like a normal text file. Copy ALL of it, paste into the terminal, press Enter.</li>
-            <li>Done. Your admin page moves to <b>http://192.168.88.1:8080</b> (save that link). The WiFi opens with your business name, and customers need a voucher code to get online.</li>
+            <li>Done. Your admin page moves to <b>http://192.168.88.1:8080</b> (save that link). From then on you change everything from this website.</li>
           </ol>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "#a15c00" }}>
-            <b>If you see "not allowed by device-mode":</b> your router is in a locked-down safety mode. Paste this one line first: <code>/system device-mode update fetch=yes</code> - it will ask you to confirm by briefly pressing the router&apos;s reset button (a quick 1-second tap, not a hold). After it reboots, paste the setup script again and it will work.
+            <b>If you see &quot;not allowed by device-mode&quot;:</b> your router is in a locked-down safety mode. Paste this one line first: <code>/system device-mode update fetch=yes</code> - it will ask you to confirm by briefly pressing the router&apos;s reset button (a quick 1-second tap, not a hold). After it reboots, paste the setup script again and it will work.
           </p>
         </div>
-        <label>New router name</label>
-        <input value={routerName} onChange={e => setRouterName(e.target.value)} placeholder="e.g. Shop Branch" />
+
+        <label>Add another router</label>
+        <input value={routerName} onChange={e => setRouterName(e.target.value)} placeholder="e.g. Shop Branch WiFi" />
         <button className="cta" onClick={addRouter}>Add router</button>
       </main>
 
@@ -293,16 +360,9 @@ export default function Dashboard() {
 
             <button className="cta" onClick={savePortal}>Save design</button>
             {portalMsg && <p>{portalMsg}</p>}
-            <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "10px 12px", fontSize: 13, marginTop: 8 }}>
-              <b>No upload needed.</b> New routers pick up this design automatically when you run their setup script. Already set up a router? After saving, paste these lines into its terminal to refresh it instantly:
-              {data.routers.map(r => (
-                <pre key={r.id} style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6, padding: 8, fontSize: 12, marginTop: 6, overflowX: "auto" }}>
-{`/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}" dst-path=hotspot/login.html
-/tool fetch url="https://monibright-platform.vercel.app/api/portal/live?key=${r.router_key}&page=status" dst-path=hotspot/status.html
-/interface wifi set [find] configuration.ssid="${(data.tenant.business_name + " WiFi").replace(/[^A-Za-z0-9 _-]/g, "").slice(0, 30)}" security.authentication-types=""`}
-                </pre>
-              ))}
-            </div>
+            <p style={{ fontSize: 12, color: "#888" }}>
+              Nothing to upload and nothing to paste. Every router you have set up checks for changes on its own.
+            </p>
           </>
         )}
       </main>
