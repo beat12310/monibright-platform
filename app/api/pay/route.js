@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/db";
 import { getBillingStatus } from "../../../lib/billing";
+import { decryptSecret } from "../../../lib/crypto";
 
 export async function POST(req) {
   try {
@@ -9,6 +10,15 @@ export async function POST(req) {
     if (tenantRes.rows.length === 0) return NextResponse.json({ error: "Unknown business." }, { status: 404 });
     const { paystack_secret_key, business_name } = tenantRes.rows[0];
     if (!paystack_secret_key) return NextResponse.json({ error: "This business hasn't connected Paystack yet." }, { status: 400 });
+
+    // Keys are stored encrypted; older rows may still be plaintext and pass through unchanged.
+    let secretKey;
+    try {
+      secretKey = decryptSecret(paystack_secret_key);
+    } catch (e) {
+      return NextResponse.json({ error: "This business's payment settings need to be reconnected." }, { status: 500 });
+    }
+
     const billing = await getBillingStatus(tenantId);
     if (!billing?.active) return NextResponse.json({ error: "This business is temporarily unavailable." }, { status: 403 });
 
@@ -19,7 +29,7 @@ export async function POST(req) {
     const base = process.env.BASE_URL || `https://${req.headers.get("host")}`;
     const r = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
-      headers: { Authorization: `Bearer ${paystack_secret_key}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         email: `customer@${business_name.toLowerCase().replace(/[^a-z0-9]/g, "")}.platform`,
         amount: Math.round(price * 100),

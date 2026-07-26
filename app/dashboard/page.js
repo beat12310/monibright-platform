@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [billMsg, setBillMsg] = useState("");
   const [apiErr, setApiErr] = useState("");
   const [tenantId, setTenantId] = useState(null);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountMsg, setAccountMsg] = useState("");
 
   async function load() {
     const r = await fetch("/api/dashboard");
@@ -27,6 +29,7 @@ export default function Dashboard() {
     const d = await r.json();
     setData(d);
     setTenantId(d?.tenant?.id ?? null);
+    setAccountEmail(d?.tenant?.email ?? "");
     const b = await fetch("/api/billing").then(x => x.json()).catch(() => null);
     setBilling(b?.status || null);
     const p = await fetch("/api/portal").then(x => x.json()).catch(() => null);
@@ -47,7 +50,43 @@ export default function Dashboard() {
     return d;
   }
 
+  async function del(url) {
+    setApiErr("");
+    const r = await fetch(url, { method: "DELETE" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { setApiErr(d.error || "Something went wrong."); return null; }
+    return d;
+  }
+
   async function addRouter() { if (await post("/api/routers", { routerName })) { setRouterName(""); load(); } }
+
+  async function removeRouter(r) {
+    const sure = window.confirm(
+      `Remove "${r.router_name}"?\n\n` +
+      `Its captive portal (key ${r.router_key}) will stop working straight away. ` +
+      `You will need to run a fresh setup script on that router before it can sell WiFi again.\n\n` +
+      `This cannot be undone.`
+    );
+    if (!sure) return;
+    if (await del(`/api/routers?routerId=${r.id}`)) load();
+  }
+
+  async function saveEmail() {
+    const clean = accountEmail.trim().toLowerCase();
+    if (!clean) { setAccountMsg("Enter an email address first."); return; }
+    if (clean === (data?.tenant?.email || "")) { setAccountMsg("That is already your email address."); return; }
+    const sure = window.confirm(
+      `Change your sign-in email to:\n\n${clean}\n\n` +
+      `From now on you log in with this address and your existing password. ` +
+      `Make sure you can receive mail here.`
+    );
+    if (!sure) return;
+    setAccountMsg("Saving...");
+    const d = await post("/api/settings", { email: clean });
+    setAccountMsg(d ? `Saved. Sign in with ${d.email} from now on - your password has not changed.` : "");
+    if (d) load();
+  }
+
   async function addPackage() {
     const body = pkgType === "time"
       ? { type: "time", days: Number(pkgDays), priceGhs: Number(pkgPrice) }
@@ -91,6 +130,18 @@ export default function Dashboard() {
       {apiErr && <main className="card" style={{ background: "#fff3f3", color: "#b00020" }}>{apiErr}</main>}
 
       <main className="card">
+        <h2>Your account</h2>
+        <p style={{ fontSize: 13, color: "#666" }}>This is the email address you sign in with.</p>
+        <label>Email address</label>
+        <input value={accountEmail} onChange={e => setAccountEmail(e.target.value)} type="email" placeholder="you@example.com" />
+        <button className="cta" onClick={saveEmail}>Save email</button>
+        {accountMsg && <p>{accountMsg}</p>}
+        <p style={{ fontSize: 12, color: "#888" }}>
+          Your password stays the same. There is no confirmation email, so double-check the spelling before you save.
+        </p>
+      </main>
+
+      <main className="card">
         <h2>Your plan</h2>
         {billing ? (
           <>
@@ -128,10 +179,16 @@ export default function Dashboard() {
         {data.routers.map(r => (
           <div className="row" key={r.id}>
             <span>{r.router_name} <span className="pill">{r.router_key}</span></span>
-            <button className="cta ghost" style={{ width: "auto", padding: "6px 12px", margin: 0 }}
-              onClick={() => { window.location.href = `/api/script?routerId=${r.id}`; }}>
-              Download setup script
-            </button>
+            <span style={{ display: "flex", gap: 8 }}>
+              <button className="cta ghost" style={{ width: "auto", padding: "6px 12px", margin: 0 }}
+                onClick={() => { window.location.href = `/api/script?routerId=${r.id}`; }}>
+                Download setup script
+              </button>
+              <button className="cta ghost" style={{ width: "auto", padding: "6px 12px", margin: 0, color: "#b00020", borderColor: "#b00020" }}
+                onClick={() => removeRouter(r)}>
+                Remove
+              </button>
+            </span>
           </div>
         ))}
         <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "10px 12px", fontSize: 13, margin: "10px 0" }}>
@@ -143,7 +200,7 @@ export default function Dashboard() {
             <li>Done. Your admin page moves to <b>http://192.168.88.1:8080</b> (save that link). The WiFi opens with your business name, and customers need a voucher code to get online.</li>
           </ol>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "#a15c00" }}>
-            <b>If you see "not allowed by device-mode":</b> your router is in a locked-down safety mode. Paste this one line first: <code>/system device-mode update fetch=yes</code> - it will ask you to confirm by briefly pressing the router's reset button (a quick 1-second tap, not a hold). After it reboots, paste the setup script again and it will work.
+            <b>If you see "not allowed by device-mode":</b> your router is in a locked-down safety mode. Paste this one line first: <code>/system device-mode update fetch=yes</code> - it will ask you to confirm by briefly pressing the router&apos;s reset button (a quick 1-second tap, not a hold). After it reboots, paste the setup script again and it will work.
           </p>
         </div>
         <label>New router name</label>
@@ -252,7 +309,7 @@ export default function Dashboard() {
 
       <main className="card">
         <h2>Connect Paystack</h2>
-        <p style={{ fontSize: 13, color: "#666" }}>Your WiFi customers' payments go straight to <b>your</b> Paystack account - Monibright never touches the money.</p>
+        <p style={{ fontSize: 13, color: "#666" }}>Your WiFi customers&apos; payments go straight to <b>your</b> Paystack account - Monibright never touches the money.</p>
         <p style={{ fontSize: 13 }}>Status: {data.tenant.has_paystack ? "✅ Connected - customers can buy codes with MoMo" : "❌ Not connected yet"}</p>
         <label>Paystack secret key (starts with sk_live_)</label>
         <input value={paystackKey} onChange={e => setPaystackKey(e.target.value)} placeholder="sk_live_..." />
@@ -263,7 +320,7 @@ export default function Dashboard() {
           <>
             <label>Your customer payment link</label>
             <input readOnly value={`https://monibright-platform.vercel.app/buy?tenantId=${tenantId}`} onFocus={e => e.target.select()} />
-            <p style={{ fontSize: 12, color: "#888" }}>This link is already built into your WiFi login page ("Buy a code with MoMo").</p>
+            <p style={{ fontSize: 12, color: "#888" }}>This link is already built into your WiFi login page (&quot;Buy a code with MoMo&quot;).</p>
           </>
         ) : null}
       </main>

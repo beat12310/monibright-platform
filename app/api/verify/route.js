@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { pool } from "../../../lib/db";
+import { decryptSecret } from "../../../lib/crypto";
 
 export async function GET(req) {
   const url = new URL(req.url);
@@ -20,8 +21,16 @@ export async function GET(req) {
   if (tenantRes.rows.length === 0) return NextResponse.json({ error: "Unknown business." }, { status: 404 });
   const { paystack_secret_key } = tenantRes.rows[0];
 
+  // Keys are stored encrypted; older rows may still be plaintext and pass through unchanged.
+  let secretKey;
+  try {
+    secretKey = decryptSecret(paystack_secret_key);
+  } catch (e) {
+    return NextResponse.json({ error: "This business's payment settings need to be reconnected." }, { status: 500 });
+  }
+
   const r = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-    headers: { Authorization: `Bearer ${paystack_secret_key}` }
+    headers: { Authorization: `Bearer ${secretKey}` }
   });
   const d = await r.json();
   if (!d.status || d.data?.status !== "success") {
