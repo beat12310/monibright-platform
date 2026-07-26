@@ -1,0 +1,87 @@
+ENABLE AUTOMATIC UPDATES ON A ROUTER THAT IS ALREADY SET UP
+===========================================================
+
+Only needed once, and only for routers that were set up BEFORE this update.
+Any router you set up from now on gets this automatically.
+
+Do NOT paste the full setup script again on a working router - it would add a
+second RADIUS entry and a second hotspot and confuse the router. Paste the
+block below instead. It is safe to paste twice: it removes its own old copy
+before adding a new one.
+
+
+BEFORE YOU PASTE
+----------------
+Replace ROUTER_KEY_HERE (it appears twice) with that router's key, which is
+shown under its name on your dashboard - 12 characters like B3090F73D593.
+
+
+WHERE TO PASTE
+--------------
+1. Open http://192.168.88.1:8080  (port 8080, because setup moved the admin page)
+2. Log in
+3. Open Terminal
+4. Paste the whole block, press Enter
+
+
+THE BLOCK
+---------
+
+:do {
+  /tool fetch url="https://curl.se/ca/cacert.pem" dst-path=cacert.pem
+  /certificate import file-name=cacert.pem passphrase=""
+  :put "Certificate authorities installed."
+} on-error={
+  :put "WARNING: could not install certificate authorities - automatic updates will not run."
+}
+
+/system script remove [find name="monibright-sync"]
+/system script add name=monibright-sync policy=read,write,policy,test,ftp source={
+:do {
+/tool fetch url="https://monibright-platform.vercel.app/api/router-config?key=ROUTER_KEY_HERE" check-certificate=yes dst-path=monibright-config.rsc
+:delay 2s
+/import file-name=monibright-config.rsc
+} on-error={
+:log warning "Monibright: sync failed, keeping current settings"
+}
+}
+
+/system scheduler remove [find name="monibright-sync"]
+/system scheduler add name=monibright-sync interval=2m on-event="/system script run monibright-sync" comment="Monibright automatic updates"
+
+/system script run monibright-sync
+
+:put "=============================================="
+:put "Automatic updates are on."
+:put "Change the WiFi name on your dashboard - this"
+:put "router will follow within about 2 minutes."
+:put "=============================================="
+
+
+DID IT WORK?
+------------
+Change the WiFi name on your dashboard, wait 2-3 minutes, then look at the WiFi
+list on your phone. You may need to toggle WiFi off and on for the phone to
+notice.
+
+To check from the router instead, paste:
+
+    /log print where message~"Monibright"
+
+You should see either a line saying the WiFi name changed, or a warning telling
+you what went wrong.
+
+
+IF NOTHING HAPPENS
+------------------
+Almost always the certificate step failed. Test it by pasting:
+
+    /tool fetch url="https://monibright-platform.vercel.app/api/router-config?key=ROUTER_KEY_HERE" check-certificate=yes dst-path=test.rsc
+
+- "status: finished" means certificates are fine and the problem is elsewhere.
+- An SSL or certificate error means the CA install did not work. Run the first
+  block again when the router definitely has internet.
+
+Do not be tempted to change check-certificate to "no" to make the error go
+away. That setting is what stops someone on the same network from feeding your
+router fake configuration - and this file is executed on the router as admin.

@@ -1,0 +1,118 @@
+MONIBRIGHT UPDATE - account email, remove routers, and 3 security fixes
+=======================================================================
+
+Do the steps in this order. Step 1 must happen BEFORE step 2, or the
+Paystack card on the dashboard will error.
+
+
+STEP 1 - ADD ONE ENVIRONMENT VARIABLE (2 minutes)
+-------------------------------------------------
+vercel.com > monibright-platform > Settings > Environment Variables
+> Add Environment Variable
+
+  Name:  ENCRYPTION_KEY
+  Value: 4a2b090e88020ede78ca1137b83760f2394501e503326bd5dfe85fa7fb735c06
+  Apply to: Production, Preview, Development
+  Mark it Sensitive.
+
+That value was generated randomly for you. If you would rather generate your
+own, any 64 hex characters works.
+
+Already set, nothing to do: JWT_SECRET, DATABASE_URL.
+Still missing: PLATFORM_PAYSTACK_SECRET - without it the "Choose Basic" and
+"Choose Pro" subscription buttons cannot charge you. Add your own Paystack
+secret key there when you are ready.
+
+
+STEP 2 - UPLOAD THE CODE
+------------------------
+1. Go to github.com/beat12310/monibright-platform
+2. "Add file" > "Upload files"
+3. Drag BOTH the "app" folder and the "lib" folder from this package into the
+   upload box. GitHub keeps the folder structure and replaces the old files.
+4. Commit changes. Vercel redeploys in about a minute.
+
+
+STEP 3 - TEST IMMEDIATELY AFTER THE DEPLOY
+------------------------------------------
+Open monibright-platform.vercel.app/dashboard and check it loads your data.
+
+If the dashboard shows an error or will not log in, the database server most
+likely has no TLS support. Fix it in 30 seconds:
+  Vercel > Settings > Environment Variables > Add
+  Name: DB_SSL   Value: off
+  then Redeploy.
+That restores the old unencrypted connection. Treat it as temporary and turn
+on TLS at the Postgres server when you can.
+
+
+WHAT CHANGED
+------------
+
+New features you asked for:
+
+  app/dashboard/page.js
+    - New "Your account" card: change the email you sign in with.
+    - Red "Remove" button next to each router.
+    - Both ask you to confirm first.
+
+  app/api/settings/route.js
+    - Accepts an "email" field. Validates it, refuses an address another
+      account already uses, then updates your row.
+
+  app/api/routers/route.js
+    - New DELETE handler, scoped to your own account so it can never touch
+      another tenant's router.
+
+Security fixes:
+
+  lib/auth.js
+    - Removed the hardcoded fallback secret "dev-secret-change-me". Anyone who
+      read the public repo could have used it to forge a login cookie for any
+      account IF the env var were ever missing. It is set, so nothing was
+      exposed - but the trap is gone now. If JWT_SECRET ever goes missing,
+      logins fail loudly instead of becoming forgeable.
+
+  lib/db.js
+    - The database connection is encrypted instead of ssl: false. Your database
+      password and every row used to cross the internet in the clear.
+
+  lib/crypto.js (new) + app/api/pay/route.js + app/api/verify/route.js
+    - Paystack secret keys are encrypted with AES-256-GCM before being written
+      to the database, and decrypted only when a payment is being made.
+      Existing plaintext keys keep working and are upgraded the next time you
+      save the key on the dashboard.
+
+
+STEP 4 - MAKE THE REPOSITORY PRIVATE
+------------------------------------
+1. github.com/beat12310/monibright-platform
+2. Settings tab (top right of the repo, not your account settings)
+3. Scroll to the very bottom, "Danger Zone"
+4. "Change repository visibility" > "Make private" > confirm by typing the
+   repository name
+5. Vercel keeps deploying normally - the GitHub app keeps its access.
+
+Worth knowing: private is the right call, but it is not a substitute for the
+fixes above. Your code contained no passwords or keys - those all live in
+Vercel environment variables - so nothing secret leaked. What was public was
+the logic, including the fallback-secret weakness.
+
+
+THEN, THE ACTUAL HOUSEKEEPING
+-----------------------------
+1. Change your email to opokur214@gmail.com in the "Your account" card.
+   Your password does not change. Sign in with the new address from then on.
+   There is no confirmation email, so check the spelling before saving.
+
+2. Remove "Starlink Wifi" and "My WIFI". Each one's captive portal stops
+   working the moment it is removed. Voucher codes already issued stay in the
+   RADIUS tables, but the login page they go through will be gone until that
+   router is set up again.
+
+3. Add your new router, download its setup script, paste it into the MikroTik
+   terminal at http://192.168.88.1.
+
+4. The SSID comes from your business name ("KOJO WIFI" -> "KOJO WIFI WiFi").
+   For a different WiFi name, either change the business name, or set the SSID
+   directly on the router: Webfig > WiFi > wifi1 > SSID.

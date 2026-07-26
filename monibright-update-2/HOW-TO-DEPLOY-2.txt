@@ -1,0 +1,133 @@
+MONIBRIGHT UPDATE 2 - change the WiFi name from the website
+===========================================================
+
+NO DATABASE CHANGES. NO NEW ENVIRONMENT VARIABLES.
+Nothing you already have stops working.
+
+
+WHAT THIS DOES
+--------------
+Today the WiFi name lives only inside the router, so changing it means opening
+WebFig. After this update the owner types a new name on the dashboard, presses
+save, and the router renames itself about 2 minutes later. No terminal, no
+technical knowledge.
+
+Why 2 minutes and not instantly: these routers sit behind the ISP's network
+with no public address, so nothing on the internet can reach in to them. The
+router has to be the one that asks. It asks every 2 minutes.
+
+
+HOW IT WORKS
+------------
+The setup script now installs a small scheduled job on the router called
+"monibright-sync". Every 2 minutes it fetches
+
+    /api/router-config?key=<router key>
+
+and imports it. That file only ever does two things: set the WiFi name if it
+has changed, and refresh the two portal pages. It carries no passwords and no
+RADIUS secret, so even if someone guessed a router key the worst they could
+read is a WiFi name.
+
+The WiFi name is simply the router's name in your dashboard. That is why no new
+database column was needed - the column already existed.
+
+
+UPLOAD (same as last time)
+--------------------------
+1. github.com/beat12310/monibright-platform
+2. "Add file" > "Upload files"
+3. Drag the "app" folder from this package into the box.
+   It contains 6 files:
+       app/api/router-config/route.js   (new - what the router asks for)
+       app/api/routers/route.js         (adds rename)
+       app/api/script/route.js          (adds the sync job)
+       app/api/settings/route.js        (adds business name)
+       app/api/portal/live/route.js     (fixes the wrong name on the
+                                         "you're connected" page)
+       app/dashboard/page.js            (WiFi name box, business name box)
+4. Commit to main. Vercel deploys in about a minute.
+
+
+EXISTING ROUTERS NEED ONE PASTE, ONCE
+-------------------------------------
+A router that was already set up does not have the sync job yet. Do NOT paste
+the whole setup script again - that would add a second RADIUS entry and a
+second hotspot. Use ENABLE-AUTO-UPDATES.txt instead: one small block, pasted
+once per router. After that the router looks after itself forever.
+
+
+ABOUT CERTIFICATES
+------------------
+The sync job runs configuration sent by your server, so the router must be sure
+it is really talking to Monibright. The setup script now installs the standard
+list of certificate authorities and the fetch uses check-certificate=yes.
+
+If that install fails (no internet at the moment it runs), the sync simply does
+not run. It fails safe: the WiFi keeps working exactly as before, it just will
+not pick up new names until you paste the enable block again.
+
+
+ONE THING I DID NOT TOUCH, AND WHY
+----------------------------------
+app/api/script/route.js still contains:
+
+    const RADIUS_SECRET = process.env.RADIUS_SHARED_SECRET || "MonibrightTestSecret2026";
+
+This is the same class of problem as the JWT one, and it is currently live:
+RADIUS_SHARED_SECRET is not set in Vercel, so every router you have deployed is
+using that password, and it is printed in a public repository. Anyone who reads
+it can talk to your RADIUS server at 35.94.30.151.
+
+I left it alone deliberately. Changing it here would instantly break every
+router already in the field, because the secret has to match on three sides at
+once:
+
+  1. the FreeRADIUS server config (clients.conf) on the AWS machine
+  2. the /radius entry inside every router already deployed
+  3. this file
+
+Rotating it safely means: pick a new secret, add it to FreeRADIUS as a second
+allowed client, set RADIUS_SHARED_SECRET in Vercel, push the new secret to every
+router (the sync job can now do this for you), then remove the old one. That is
+a sequence worth doing carefully on a quiet evening, not in the middle of other
+changes. Ask me when you want to do it.
+
+
+DEVICE-MODE: READ THIS BEFORE YOU SET UP ANY ROUTER
+---------------------------------------------------
+Every MikroTik ships in a restricted "device-mode". On the test router it was:
+
+    mode: home
+    scheduler: no      <-- the sync job CANNOT be created
+    proxy: no          <-- hotspot walled-garden rules are inactivated
+    fetch: yes
+    hotspot: yes
+
+With scheduler disabled, none of the automatic updating in this release works.
+The code is fine; the hardware refuses. Check it with:
+
+    /system device-mode print
+
+To unlock, on each router:
+
+    /system device-mode update scheduler=yes proxy=yes
+
+RouterOS then demands physical proof that a human is present: press the reset
+button briefly (about 1 second - do NOT hold it, that wipes the router) or
+power-cycle it within the time limit shown. There is no remote way around this,
+by design.
+
+This is a strong reason to configure routers before handing them to a client:
+you press the button once in your workshop, and they never see any of it.
+
+
+LIMITS WORTH KNOWING
+--------------------
+- WiFi names allow letters, numbers, spaces, hyphens and underscores, up to 30
+  characters. Accents and symbols are stripped, so "Café" becomes "Caf". The
+  dashboard tells the owner when it had to clean the name.
+- Renaming disconnects everyone currently on that WiFi. They rejoin under the
+  new name. Vouchers are not affected.
+- The name only changes if it actually differs, so the radio is never restarted
+  needlessly.
