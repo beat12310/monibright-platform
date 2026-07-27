@@ -18,3 +18,13 @@ export async function POST(req) {
     return NextResponse.json({ error: "Login failed. Try again." }, { status: 500 });
   }
 }
+
+// --- Sign out ---
+// Clears the session cookie. DELETE rather than GET on purpose: a plain link
+// could be triggered by an image or script on another site and log people out
+// without them asking.
+export async function DELETE() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("mb_session", "", { httpOnly: true, maxAge: 0, path: "/" });
+  return res;
+}
