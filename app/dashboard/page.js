@@ -260,13 +260,21 @@ export default function Dashboard() {
         <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "10px 12px", fontSize: 13, margin: "14px 0" }}>
           <b>Setting up a router for the first time (5 minutes):</b>
           <ol style={{ margin: "6px 0 0 18px", padding: 0 }}>
-            <li>Plug your internet cable into port 1, your computer into port 2.</li>
-            <li>Open <b>http://192.168.88.1</b>, log in, open <b>Terminal</b>.</li>
-            <li>Download the setup script above - it opens like a normal text file. Copy ALL of it, paste into the terminal, press Enter.</li>
-            <li>Done. Your admin page moves to <b>http://192.168.88.1:8080</b> (save that link). From then on you change everything from this website.</li>
+            <li>Plug your internet cable into <b>port 1</b>, your computer into <b>port 2</b>.</li>
+            <li>Open <b>http://192.168.88.1</b> and log in. On a brand new router the name is <b>admin</b> and the password is blank.</li>
+            <li>Click <b>Terminal</b> (top right of the router page).</li>
+            <li><b>Unlock the router first</b> - paste this one line and press Enter:
+              <pre style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6, padding: 8, fontSize: 12, marginTop: 6, overflowX: "auto" }}>/system device-mode update fetch=yes scheduler=yes proxy=yes</pre>
+              It will ask you to prove someone is really there. <b>Tap the router&apos;s reset button for about 1 second</b> - a quick tap, NOT a long hold (holding it erases the router). The router restarts, then log in again.
+            </li>
+            <li>Download the setup script above - it opens like a normal text file. Copy ALL of it, paste into Terminal, press Enter.</li>
+            <li>Done. Your admin page moves to <b>http://192.168.88.1:8080</b> - save that link. From now on you change everything from this website and the router follows on its own.</li>
           </ol>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#a15c00" }}>
-            <b>If you see &quot;not allowed by device-mode&quot;:</b> your router is in a locked-down safety mode. Paste this one line first: <code>/system device-mode update fetch=yes</code> - it will ask you to confirm by briefly pressing the router&apos;s reset button (a quick 1-second tap, not a hold). After it reboots, paste the setup script again and it will work.
+          <p style={{ margin: "10px 0 0", fontSize: 12, color: "#a15c00" }}>
+            <b>Why step 4 matters.</b> Every MikroTik leaves the factory locked down. Without it you may see <i>&quot;not allowed by device-mode&quot;</i>, and worse, the router will look like it worked but will quietly never pick up changes you make here - the WiFi name, the phone number, the design. If you skip it you have to come back to the router in person to change anything.
+          </p>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#888" }}>
+            To check a router later, paste <code>/system device-mode print</code> in Terminal. You want <b>fetch: yes</b>, <b>scheduler: yes</b> and <b>proxy: yes</b>.
           </p>
         </div>
 
