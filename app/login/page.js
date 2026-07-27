@@ -8,6 +8,20 @@ export default function Login() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Platform owners land on the admin overview, everyone else on their own
+  // dashboard. The check is deliberately forgiving: if it errors, times out or
+  // returns anything other than a clear yes, the user goes to /dashboard - the
+  // behaviour this page has always had.
+  async function goToRightPlace() {
+    try {
+      const a = await fetch("/api/admin", { cache: "no-store" });
+      if (a.ok) { window.location.href = "/admin"; return; }
+    } catch (e) {
+      // ignore and fall through
+    }
+    router.push("/dashboard");
+  }
+
   async function submit() {
     setBusy(true); setErr("");
     const r = await fetch("/api/auth/login", {
@@ -15,7 +29,7 @@ export default function Login() {
     });
     const d = await r.json();
     if (d.error) { setErr(d.error); setBusy(false); return; }
-    router.push("/dashboard");
+    await goToRightPlace();
   }
 
   return (
