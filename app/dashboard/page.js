@@ -98,6 +98,13 @@ export default function Dashboard() {
     if (await del(`/api/routers?routerId=${r.id}`)) load();
   }
 
+  async function signOut() {
+    const sure = window.confirm("Sign out of Monibright on this device?");
+    if (!sure) return;
+    await fetch("/api/auth/login", { method: "DELETE" }).catch(() => {});
+    window.location.href = "/login";
+  }
+
   async function saveBusinessName() {
     const clean = businessName.trim();
     if (!clean) { setAccountMsg("Enter a business name."); return; }
@@ -184,6 +191,8 @@ export default function Dashboard() {
         <p style={{ fontSize: 12, color: "#888" }}>
           Your password stays the same. There is no confirmation email, so double-check the spelling before you save.
         </p>
+
+        <button className="cta ghost" style={{ marginTop: 18 }} onClick={signOut}>Sign out</button>
       </main>
 
       <main className="card">
