@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { pool } from "../../../lib/db";
 import { getTenantIdFromRequest } from "../../../lib/auth";
 import { getBillingStatus } from "../../../lib/billing";
+import { sweepSpent } from "../../../lib/enforce";
 
 export async function POST(req) {
   const tenantId = getTenantIdFromRequest(req);
@@ -37,6 +38,7 @@ export async function POST(req) {
       const suffix = crypto.randomBytes(4).toString("hex").toUpperCase();
       const code = `${routerKey.slice(0, 4)}-${suffix}`;
       await client.query(`INSERT INTO radcheck (username, attribute, op, value) VALUES ($1,'Auth-Type',':=','Accept')`, [code]);
+
       if (pkg.type === "time") {
         const seconds = pkg.days * 86400;
         await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Session-Timeout',':=',$2)`, [code, String(seconds)]);
@@ -53,6 +55,27 @@ export async function POST(req) {
   } finally {
     client.release();
   }
+
+  // One code, one device at a time. Without this a customer can share a single
+  // code around a whole group and each phone gets its own full allowance -
+  // which is how 1GB turns into 5GB.
+  //
+  // Deliberately AFTER the commit and in its own try/catch: if this ever fails,
+  // the codes are still valid and sellable, just shareable. Inside the
+  // transaction a failure here would roll back the whole batch and the owner
+  // would be unable to generate codes at all.
+  try {
+    for (const code of codes) {
+      await pool.query(
+        `INSERT INTO radcheck (username, attribute, op, value) VALUES ($1,'Simultaneous-Use',':=','1')`,
+        [code]
+      );
+    }
+  } catch (e) {}
+
+  // Good moment to retire any codes that have already used up their data.
+  // Never allowed to affect the response.
+  try { await sweepSpent(); } catch (e) {}
 
   return NextResponse.json({ codes, type: pkg.type, gb: pkg.gb, days: pkg.days, price });
 }
