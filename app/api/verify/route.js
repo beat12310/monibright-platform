@@ -54,6 +54,7 @@ export async function GET(req) {
   try {
     await client.query("BEGIN");
     await client.query(`INSERT INTO radcheck (username, attribute, op, value) VALUES ($1,'Auth-Type',':=','Accept')`, [code]);
+
     if (pkg.type === "time") {
       const seconds = pkg.days * 86400;
       await client.query(`INSERT INTO radreply (username, attribute, op, value) VALUES ($1,'Session-Timeout',':=',$2)`, [code, String(seconds)]);
@@ -72,6 +73,16 @@ export async function GET(req) {
   } finally {
     client.release();
   }
+
+  // One paid code, one device at a time. Kept outside the transaction on
+  // purpose: the customer has already paid, so nothing here is allowed to
+  // jeopardise handing them their code.
+  try {
+    await pool.query(
+      `INSERT INTO radcheck (username, attribute, op, value) VALUES ($1,'Simultaneous-Use',':=','1')`,
+      [code]
+    );
+  } catch (e) {}
 
   return NextResponse.json({ code, gb: pkg.gb, days: pkg.days, ghs: paidGhs });
 }
